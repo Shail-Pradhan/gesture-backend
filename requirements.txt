@@ -1,8 +1,11 @@
-Flask==2.3.3
-flask-cors==4.0.0
-opencv-python==4.9.0.80
-mediapipe==0.10.3
-gunicorn==21.2.0
-numpy==1.26.4
-tensorflow==2.14.0
+Flask==3.0.3
+flask-cors==5.0.1
+gunicorn==23.0.0         # Use this for production WSGI serving
 
+tensorflow==2.17.0       # Or tensorflow-cpu if GPU is not required
+mediapipe==0.10.14
+opencv-python==4.11.0.86
+numpy==1.26.4
+
+requests==2.32.3         # Useful if you’re calling APIs
+Pillow==10.4.0           # For image handling (if used)
