@@ -540,62 +540,60 @@ def draw_info(image, fps, mode, number):
 
 
 # Flask app for serving the model
+# Flask app for serving the model
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import cv2
+import numpy as np
+import base64
+import io
+from PIL import Image
+import csv
+import mediapipe as mp
+from model import KeyPointClassifier, PointHistoryClassifier
+
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app)  # Allow frontend (React) to talk to Flask
+
+# Load MediaPipe and models once
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(static_image_mode=True, max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.5)
+keypoint_classifier = KeyPointClassifier()
+
+# Load labels
+with open('model/keypoint_classifier/keypoint_classifier_label.csv', encoding='utf-8-sig') as f:
+    keypoint_classifier_labels = [row[0] for row in csv.reader(f)]
+
+@app.route('/')
+def index():
+    return "👋 Flask backend is running!"
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    # Get image data sent from browser
+    data = request.json
+    image_data = base64.b64decode(data['image'].split(',')[1])
+
+    # Convert to OpenCV image
+    image = np.array(Image.open(io.BytesIO(image_data)).convert("RGB"))
+
+    # Run MediaPipe to get hand landmarks
+    results = hands.process(image)
+
+    # If hand is detected, classify the gesture
+    if results.multi_hand_landmarks:
+        hand_landmarks = results.multi_hand_landmarks[0]
+        landmark_list = calc_landmark_list(image, hand_landmarks)
+        processed = pre_process_landmark(landmark_list)
+        gesture_id = keypoint_classifier(processed)
+        gesture = keypoint_classifier_labels[gesture_id]
+        return jsonify({'gesture': gesture})
+
+    return jsonify({'gesture': 'No hand detected'})
+
 if __name__ == '__main__':
-
-    from flask import Flask, request, jsonify
-    from flask_cors import CORS
-    import cv2
-    import numpy as np
-    import base64
-    import io
-    from PIL import Image
-    import csv
-    import mediapipe as mp
-    from model import KeyPointClassifier, PointHistoryClassifier
-
-    # Start Flask app
-    app = Flask(__name__)
-    CORS(app)  # Allow frontend (React) to talk to Flask
-
-    # Load MediaPipe and models once
-    mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands(static_image_mode=True, max_num_hands=1, min_detection_confidence=0.7, min_tracking_confidence=0.5)
-    keypoint_classifier = KeyPointClassifier()
-
-    # Load labels
-    with open('model/keypoint_classifier/keypoint_classifier_label.csv', encoding='utf-8-sig') as f:
-        keypoint_classifier_labels = [row[0] for row in csv.reader(f)]
-
-    @app.route('/')
-    def index():
-        return "👋 Flask backend is running!"
-
-
-    @app.route('/predict', methods=['POST'])
-    def predict():
-        # Get image data sent from browser
-        data = request.json
-        image_data = base64.b64decode(data['image'].split(',')[1])
-
-        # Convert to OpenCV image
-        image = np.array(Image.open(io.BytesIO(image_data)).convert("RGB"))
-
-        # Run MediaPipe to get hand landmarks
-        results = hands.process(image)
-
-        # If hand is detected, classify the gesture
-        if results.multi_hand_landmarks:
-            hand_landmarks = results.multi_hand_landmarks[0]
-            landmark_list = calc_landmark_list(image, hand_landmarks)
-            processed = pre_process_landmark(landmark_list)
-            gesture_id = keypoint_classifier(processed)
-            gesture = keypoint_classifier_labels[gesture_id]
-            return jsonify({'gesture': gesture})
-
-        return jsonify({'gesture': 'No hand detected'})
-
-    # Start the server
-
+    # This block will only run when the script is executed directly (not when imported)
     app.run()
 
 
