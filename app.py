@@ -554,7 +554,10 @@ from model import KeyPointClassifier, PointHistoryClassifier
 
 # Initialize Flask app
 app = Flask(__name__)
-CORS(app)  # Allow frontend (React) to talk to Flask
+CORS(app, origins=[
+    "http://localhost:3000",
+    "https://gesture-frontend.vercel.app"
+],)
 
 # Load MediaPipe and models once
 mp_hands = mp.solutions.hands
