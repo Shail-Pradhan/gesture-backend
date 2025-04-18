@@ -3,10 +3,11 @@ from flask_cors import CORS
 import base64
 import io
 import numpy as np
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import csv
 import mediapipe as mp
 import os
+import gc  # For manual garbage collection
 
 from model import KeyPointClassifier
 
@@ -16,7 +17,11 @@ CORS(app)
 
 # === Load MediaPipe and Gesture Model ===
 mp_hands = mp.solutions.hands
-hands = mp_hands.Hands(static_image_mode=True, max_num_hands=1, min_detection_confidence=0.7)
+hands = mp_hands.Hands(
+    static_image_mode=False,  # More efficient if you don't need full detection every frame
+    max_num_hands=1,
+    min_detection_confidence=0.8  # Slightly more strict
+)
 keypoint_classifier = KeyPointClassifier()
 
 # === Load Label Map ===
@@ -38,12 +43,12 @@ def calc_landmark_list(image, landmarks):
 def pre_process_landmark(landmark_list):
     temp = landmark_list.copy()
     base_x, base_y = temp[0]
-    
+
     # Convert to relative coordinates
     for i in range(len(temp)):
         temp[i][0] -= base_x
         temp[i][1] -= base_y
-    
+
     # Flatten and normalize
     temp = np.array(temp).flatten()
     max_val = np.max(np.abs(temp)) if np.max(np.abs(temp)) != 0 else 1
@@ -64,7 +69,14 @@ def predict():
         # Decode base64 image
         image_b64 = data['image'].split(',')[1]
         image_data = base64.b64decode(image_b64)
-        image_pil = Image.open(io.BytesIO(image_data)).convert("RGB")
+
+        try:
+            image_pil = Image.open(io.BytesIO(image_data)).convert("RGB")
+        except UnidentifiedImageError:
+            return jsonify({'error': 'Invalid image format'}), 400
+
+        # Resize image to reduce memory usage
+        image_pil = image_pil.resize((320, 240))
         image = np.array(image_pil)
 
         # Run hand detection
@@ -76,8 +88,15 @@ def predict():
             processed = pre_process_landmark(landmark_list)
             gesture_id = keypoint_classifier(processed)
             gesture = keypoint_classifier_labels[gesture_id]
+
+            # Free memory
+            del image, image_pil, results
+            gc.collect()
+
             return jsonify({'gesture': gesture})
 
+        del image, image_pil, results
+        gc.collect()
         return jsonify({'gesture': 'No hand detected'})
 
     except Exception as e:
